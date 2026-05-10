@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quantum Tic Tac Toe</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #040812;
+  --panel: rgba(10,20,50,0.85);
+  --border: rgba(80,180,255,0.25);
+  --x-color: #00e5ff;
+  --o-color: #ff4fa3;
+  --x-glow: rgba(0,229,255,0.4);
+  --o-glow: rgba(255,79,163,0.4);
+  --gold: #ffd700;
+  --text: #c8e6ff;
+  --muted: rgba(150,200,255,0.5);
+  --grid-line: rgba(80,180,255,0.15);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── Starfield ── */
+#stars-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── Scanline overlay ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Main wrapper ── */
+#app {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 680px;
+  padding: 2rem 1.5rem 3rem;
+}
+
+/* ── Header ── */
+header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+.logo {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(22px, 5vw, 36px);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, var(--x-color) 0%, #a78bfa 50%, var(--o-color) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 18px rgba(100,150,255,0.4));
+  line-height: 1.1;
+}
+.logo-sub {
+  font-size: 12px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+/* ── Screens ── */
+.screen { display: none; animation: fadeIn 0.4s ease; }
+.screen.active { display: block; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+
+/* ── Panel ── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  backdrop-filter: blur(12px);
+  position: relative;
+  overflow: hidden;
+}
+.panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(80,180,255,0.6), transparent);
+}
+
+/* ── Section label ── */
+.section-label {
+  font-size: 10px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+/* ── Mode cards ── */
+.mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1.5rem; }
+.mode-card {
+  padding: 18px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  background: rgba(10,20,50,0.6);
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.mode-card:hover { border-color: rgba(80,180,255,0.5); background: rgba(20,40,80,0.7); }
+.mode-card.selected {
+  border-color: var(--x-color);
+  background: rgba(0,229,255,0.05);
+  box-shadow: 0 0 20px rgba(0,229,255,0.12), inset 0 0 20px rgba(0,229,255,0.04);
+}
+.mode-card.selected::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--x-color), transparent);
+}
+.mode-icon { font-size: 28px; margin-bottom: 8px; }
+.mode-title { font-family: 'Orbitron', monospace; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; color: #e0f0ff; margin-bottom: 4px; }
+.mode-desc { font-size: 12px; color: var(--muted); }
+
+/* ── Mark picker ── */
+.mark-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1.5rem; }
+.mark-btn {
+  padding: 16px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(10,20,50,0.6);
+  cursor: pointer;
+  text-align: center;
+  font-family: 'Orbitron', monospace;
+  font-size: 28px;
+  font-weight: 900;
+  transition: all 0.2s;
+  color: var(--muted);
+}
+.mark-btn:hover { border-color: rgba(80,180,255,0.5); }
+.mark-btn.selected-x { color: var(--x-color); border-color: var(--x-color); box-shadow: 0 0 20px var(--x-glow), inset 0 0 20px rgba(0,229,255,0.05); }
+.mark-btn.selected-o { color: var(--o-color); border-color: var(--o-color); box-shadow: 0 0 20px var(--o-glow), inset 0 0 20px rgba(255,79,163,0.05); }
+.mark-label { font-family: 'Rajdhani', sans-serif; font-size: 11px; letter-spacing: 0.2em; color: var(--muted); margin-top: 6px; }
+
+/* ── Launch button ── */
+.launch-btn {
+  width: 100%;
+  padding: 16px;
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  border: 1px solid var(--x-color);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(0,229,255,0.12), rgba(100,100,255,0.08));
+  color: var(--x-color);
+  cursor: pointer;
+  transition: all 0.25s;
+  position: relative;
+  overflow: hidden;
+}
+.launch-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0,229,255,0.0), rgba(0,229,255,0.15));
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.launch-btn:hover { box-shadow: 0 0 30px rgba(0,229,255,0.3), inset 0 0 20px rgba(0,229,255,0.05); }
+.launch-btn:hover::before { opacity: 1; }
+.launch-btn:active { transform: scale(0.98); }
+
+/* ── Game screen ── */
+#screen-game .panel { padding: 0; }
+
+/* ── HUD bar ── */
+.hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.hud-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+.hud-player.right { justify-content: flex-end; }
+.player-mark {
+  font-family: 'Orbitron', monospace;
+  font-size: 22px;
+  font-weight: 900;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid;
+  transition: all 0.3s;
+}
+.player-mark.x { color: var(--x-color); border-color: rgba(0,229,255,0.4); }
+.player-mark.o { color: var(--o-color); border-color: rgba(255,79,163,0.4); }
+.player-mark.active-x { box-shadow: 0 0 16px var(--x-glow); border-color: var(--x-color); background: rgba(0,229,255,0.08); }
+.player-mark.active-o { box-shadow: 0 0 16px var(--o-glow); border-color: var(--o-color); background: rgba(255,79,163,0.08); }
+.player-info { font-size: 11px; }
+.player-name { font-family: 'Orbitron', monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #c8e6ff; }
+.player-role { font-size: 10px; color: var(--muted); letter-spacing: 0.1em; margin-top: 2px; }
+.hud-center { text-align: center; flex: 0 0 80px; }
+.turn-count { font-family: 'Orbitron', monospace; font-size: 22px; font-weight: 900; color: rgba(120,180,255,0.3); }
+.turn-label { font-size: 9px; letter-spacing: 0.25em; color: var(--muted); }
+
+/* ── Board ── */
+.board-wrap { padding: 20px; }
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  position: relative;
+}
+.cell {
+  aspect-ratio: 1;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(5,15,40,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  overflow: hidden;
+}
+.cell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.cell:hover:not(.taken)::before { opacity: 1; background: rgba(0,229,255,0.06); }
+.cell:hover:not(.taken) { border-color: rgba(80,180,255,0.5); }
+.cell.taken { cursor: default; }
+
+.cell-num {
+  position: absolute;
+  top: 7px;
+  left: 9px;
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  color: rgba(80,180,255,0.3);
+  font-weight: 400;
+}
+
+.cell-mark {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(28px, 6vw, 44px);
+  font-weight: 900;
+  opacity: 0;
+  transform: scale(0.3) rotate(-15deg);
+  transition: all 0.35s cubic-bezier(0.34,1.56,0.64,1);
+}
+.cell.placed .cell-mark { opacity: 1; transform: scale(1) rotate(0deg); }
+.cell.x .cell-mark { color: var(--x-color); text-shadow: 0 0 20px var(--x-glow), 0 0 40px rgba(0,229,255,0.2); }
+.cell.o .cell-mark { color: var(--o-color); text-shadow: 0 0 20px var(--o-glow), 0 0 40px rgba(255,79,163,0.2); }
+.cell.x { border-color: rgba(0,229,255,0.35); background: rgba(0,229,255,0.04); }
+.cell.o { border-color: rgba(255,79,163,0.35); background: rgba(255,79,163,0.04); }
+
+/* ── Status bar ── */
+.status-bar {
+  margin: 0 20px 16px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(5,15,40,0.6);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  text-align: center;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.status-bar b { color: var(--x-color); }
+.status-bar b.o { color: var(--o-color); }
+
+/* ── Mid message ── */
+.mid-msg {
+  margin: 0 20px 16px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(167,139,250,0.4);
+  background: rgba(80,50,200,0.1);
+  font-size: 12px;
+  color: rgba(200,180,255,0.9);
+  letter-spacing: 0.04em;
+  display: none;
+}
+.mid-msg.show { display: block; animation: fadeIn 0.4s ease; }
+
+/* ── Action row ── */
+.action-row { display: flex; gap: 10px; padding: 0 20px 20px; }
+.ghost-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.ghost-btn:hover { border-color: rgba(80,180,255,0.5); color: var(--text); }
+
+/* ── Results screen ── */
+.results-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.5rem; }
+.sim-card {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(5,15,40,0.7);
+  padding: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.sim-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(80,180,255,0.4), transparent);
+}
+.sim-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.mini-board {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.mini-cell {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  border: 1px solid rgba(80,180,255,0.1);
+  background: rgba(5,15,40,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  font-weight: 900;
+}
+.mini-cell.x { color: var(--x-color); text-shadow: 0 0 8px var(--x-glow); border-color: rgba(0,229,255,0.25); }
+.mini-cell.o { color: var(--o-color); text-shadow: 0 0 8px var(--o-glow); border-color: rgba(255,79,163,0.25); }
+.sim-verdict { font-size: 11px; letter-spacing: 0.05em; }
+.sim-verdict.vx { color: var(--x-color); }
+.sim-verdict.vo { color: var(--o-color); }
+.sim-verdict.vt { color: var(--muted); }
+
+/* ── Final verdict ── */
+.verdict-card {
+  padding: 24px;
+  border-radius: 14px;
+  border: 1px solid;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+.verdict-card.vx { border-color: var(--x-color); background: rgba(0,229,255,0.04); }
+.verdict-card.vo { border-color: var(--o-color); background: rgba(255,79,163,0.04); }
+.verdict-card.vt { border-color: rgba(100,100,150,0.5); background: rgba(50,50,100,0.1); }
+.verdict-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+}
+.verdict-card.vx::before { background: linear-gradient(90deg, transparent, var(--x-color), transparent); }
+.verdict-card.vo::before { background: linear-gradient(90deg, transparent, var(--o-color), transparent); }
+.verdict-icon { font-family: 'Orbitron', monospace; font-size: 48px; font-weight: 900; margin-bottom: 8px; }
+.verdict-card.vx .verdict-icon { color: var(--x-color); text-shadow: 0 0 30px var(--x-glow); }
+.verdict-card.vo .verdict-icon { color: var(--o-color); text-shadow: 0 0 30px var(--o-glow); }
+.verdict-card.vt .verdict-icon { color: var(--gold); text-shadow: 0 0 20px rgba(255,215,0,0.4); }
+.verdict-title {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(14px,3vw,20px);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+.verdict-card.vx .verdict-title { color: var(--x-color); }
+.verdict-card.vo .verdict-title { color: var(--o-color); }
+.verdict-card.vt .verdict-title { color: var(--gold); }
+.verdict-sub { font-size: 12px; color: var(--muted); letter-spacing: 0.1em; }
+
+/* ── Replay btn ── */
+.replay-btn {
+  width: 100%;
+  padding: 16px;
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  border: 1px solid rgba(80,180,255,0.4);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.25s;
+}
+.replay-btn:hover { border-color: rgba(80,180,255,0.8); background: rgba(80,180,255,0.06); color: #fff; }
+
+/* ── Quantum pulse animation on active turn ── */
+@keyframes pulse {
+  0%,100%{box-shadow:0 0 10px var(--x-glow)}
+  50%{box-shadow:0 0 22px var(--x-glow),0 0 40px rgba(0,229,255,0.1)}
+}
+@keyframes pulseO {
+  0%,100%{box-shadow:0 0 10px var(--o-glow)}
+  50%{box-shadow:0 0 22px var(--o-glow),0 0 40px rgba(255,79,163,0.1)}
+}
+.active-x { animation: pulse 2s infinite; }
+.active-o { animation: pulseO 2s infinite; }
+
+/* ── Particle burst ── */
+.burst { position: fixed; pointer-events: none; z-index: 100; }
+.burst-dot {
+  position: absolute;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  animation: burstAnim 0.6s ease-out forwards;
+}
+@keyframes burstAnim {
+  to { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.2); }
+}
+
+@media (max-width: 500px) {
+  .results-grid { grid-template-columns: 1fr; }
+  .mode-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="stars-canvas"></canvas>
+
+<div id="app">
+  <header>
+    <div class="logo">Quantum<br>Tic·Tac·Toe</div>
+    <div class="logo-sub">Superposition · Entanglement · Collapse</div>
+  </header>
+
+  <!-- SETUP -->
+  <div id="screen-setup" class="screen active">
+    <div class="panel">
+      <div class="section-label">Select game mode</div>
+      <div class="mode-grid">
+        <div class="mode-card selected" id="mode-pvp" onclick="selectMode('pvp',this)">
+          <div class="mode-icon">⚡</div>
+          <div class="mode-title">Player vs Player</div>
+          <div class="mode-desc">Two humans. One quantum board.</div>
+        </div>
+        <div class="mode-card" id="mode-pvc" onclick="selectMode('pvc',this)">
+          <div class="mode-icon">🤖</div>
+          <div class="mode-title">Player vs AI</div>
+          <div class="mode-desc">Face the minimax quantum AI.</div>
+        </div>
+      </div>
+
+      <div class="section-label">Player 1 — choose your mark</div>
+      <div class="mark-grid">
+        <div class="mark-btn selected-x" id="pick-x" onclick="selectMark('x')">
+          X
+          <div class="mark-label">Qubit Alpha</div>
+        </div>
+        <div class="mark-btn" id="pick-o" onclick="selectMark('o')">
+          O
+          <div class="mark-label">Qubit Beta</div>
+        </div>
+      </div>
+
+      <button class="launch-btn" onclick="startGame()">⟩ Initialize Quantum Board</button>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="screen-game" class="screen">
+    <div class="panel">
+      <div class="hud">
+        <div class="hud-player">
+          <div class="player-mark x" id="hud-mark-x">X</div>
+          <div class="player-info">
+            <div class="player-name" id="hud-name-x">Player 1</div>
+            <div class="player-role" id="hud-role-x">QUBIT ALPHA</div>
+          </div>
+        </div>
+        <div class="hud-center">
+          <div class="turn-count" id="turn-count">0</div>
+          <div class="turn-label">MOVES</div>
+        </div>
+        <div class="hud-player right">
+          <div class="player-info" style="text-align:right">
+            <div class="player-name" id="hud-name-o">Player 2</div>
+            <div class="player-role" id="hud-role-o">QUBIT BETA</div>
+          </div>
+          <div class="player-mark o" id="hud-mark-o">O</div>
+        </div>
+      </div>
+
+      <div class="board-wrap">
+        <div class="board" id="board"></div>
+      </div>
+
+      <div class="status-bar" id="status">Initializing quantum field...</div>
+      <div class="mid-msg" id="mid-msg"></div>
+
+      <div class="action-row">
+        <button class="ghost-btn" onclick="resetAll()">↺ RESTART</button>
+        <button class="ghost-btn" onclick="resetAll()">◁ MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="screen-results" class="screen">
+    <div class="panel" style="margin-bottom:1rem">
+      <div class="section-label">Quantum collapse — 3 simulations</div>
+      <div class="results-grid" id="sims-container"></div>
+    </div>
+    <div class="verdict-card" id="verdict-card">
+      <div class="verdict-icon" id="verdict-icon"></div>
+      <div class="verdict-title" id="verdict-title"></div>
+      <div class="verdict-sub" id="verdict-sub"></div>
+    </div>
+    <button class="replay-btn" onclick="resetAll()">↺ Collapse Again — New Game</button>
+  </div>
+</div>
+
+<script>
+/* ── Stars ── */
+(function(){
+  const c=document.getElementById('stars-canvas');
+  const ctx=c.getContext('2d');
+  let W,H,stars=[];
+  function resize(){W=c.width=innerWidth;H=c.height=innerHeight;stars=[];for(let i=0;i<200;i++)stars.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.5+0.3,a:Math.random(),s:Math.random()*0.004+0.001});}
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    stars.forEach(s=>{
+      s.a+=s.s;if(s.a>1||s.a<0)s.s*=-1;
+      ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(150,200,255,${s.a*0.6})`;ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize',resize);
+  resize();draw();
+})();
+
+/* ── Game State ── */
+let mode='pvp',p1='x',p2='o';
+let current='x',turnCount=0;
+let takenPositions=new Set(),playerMap={};
+let midShown=false,gameOver=false,aiThinking=false;
+
+/* ── Setup UI ── */
+function selectMode(m,el){
+  mode=m;
+  document.getElementById('mode-pvp').classList.remove('selected');
+  document.getElementById('mode-pvc').classList.remove('selected');
+  el.classList.add('selected');
+}
+function selectMark(m){
+  p1=m;p2=m==='x'?'o':'x';
+  const bx=document.getElementById('pick-x'),bo=document.getElementById('pick-o');
+  bx.className='mark-btn'+(m==='x'?' selected-x':'');
+  bo.className='mark-btn'+(m==='o'?' selected-o':'');
+}
+
+function startGame(){
+  showScreen('screen-game');
+  document.getElementById('hud-name-x').textContent='Player 1';
+  document.getElementById('hud-name-o').textContent=mode==='pvc'?'AI':' Player 2';
+  document.getElementById('hud-role-x').textContent=p1==='x'?'QUBIT ALPHA':'QUBIT BETA';
+  document.getElementById('hud-role-o').textContent=p2==='x'?'QUBIT ALPHA':'QUBIT BETA';
+  initGame();
+}
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function initGame(){
+  takenPositions=new Set();playerMap={};current='x';turnCount=0;midShown=false;gameOver=false;
+  document.getElementById('mid-msg').classList.remove('show');
+  document.getElementById('turn-count').textContent='0';
+  renderBoard();updateHUD();updateStatus();
+  if(mode==='pvc'&&current===p2) setTimeout(aiMove,600);
+}
+
+/* ── Board ── */
+function renderBoard(){
+  const b=document.getElementById('board');b.innerHTML='';
+  for(let i=0;i<9;i++){
+    const c=document.createElement('div');
+    c.className='cell'+(takenPositions.has(i)?' taken':'');
+    const num=document.createElement('span');num.className='cell-num';num.textContent=i+1;c.appendChild(num);
+    const mk=document.createElement('span');mk.className='cell-mark';
+    if(playerMap[i]){
+      c.classList.add(playerMap[i]);
+      setTimeout(()=>c.classList.add('placed'),10);
+      mk.textContent=playerMap[i]==='x'?'X':'O';
+    }
+    c.appendChild(mk);
+    if(!takenPositions.has(i)&&!gameOver) c.addEventListener('click',()=>humanMove(i));
+    b.appendChild(c);
+  }
+}
+
+function updateHUD(){
+  const mx=document.getElementById('hud-mark-x');
+  const mo=document.getElementById('hud-mark-o');
+  mx.className='player-mark x'+(current==='x'?' active-x':'');
+  mo.className='player-mark o'+(current==='o'?' active-o':'');
+}
+
+function updateStatus(){
+  const s=document.getElementById('status');
+  if(mode==='pvp'){
+    const c=current==='x'?'<b>X</b>':'<b class="o">O</b>';
+    s.innerHTML=`${c}&nbsp;— your turn &nbsp;·&nbsp; ${9-turnCount} quantum moves remain`;
+  } else {
+    if(current===p2) s.innerHTML='<span style="color:rgba(200,150,255,0.8)">AI is computing optimal quantum move…</span>';
+    else {
+      const c=p1==='x'?'<b>X</b>':'<b class="o">O</b>';
+      s.innerHTML=`${c}&nbsp;— your turn &nbsp;·&nbsp; ${9-turnCount} moves remain`;
+    }
+  }
+}
+
+/* ── Move logic ── */
+function humanMove(pos){
+  if(takenPositions.has(pos)||gameOver||aiThinking) return;
+  if(mode==='pvc'&&current===p2) return;
+  doMove(pos);
+}
+
+function doMove(pos){
+  playerMap[pos]=current;takenPositions.add(pos);turnCount++;
+  document.getElementById('turn-count').textContent=turnCount;
+  renderBoard();
+  checkMidGame();
+  if(turnCount===9){setTimeout(showResults,500);return;}
+  current=current==='x'?'o':'x';
+  updateHUD();updateStatus();
+  if(mode==='pvc'&&current===p2&&!gameOver) setTimeout(aiMove,700);
+}
+
+function checkMidGame(){
+  if(midShown) return;
+  const board=classicalView();
+  const w=checkWinner(board);
+  if(w){
+    midShown=true;
+    const other=w==='x'?'O':'X';
+    const m=document.getElementById('mid-msg');
+    m.innerHTML=`⚛ <b>${w.toUpperCase()}</b> formed a line — but this is quantum. ${other}, the wave hasn't collapsed yet. Anything can happen.`;
+    m.classList.add('show');
+  }
+}
+
+function classicalView(){
+  const b=Array(9).fill('-');
+  takenPositions.forEach(p=>b[p]=playerMap[p]);
+  return b;
+}
+
+function checkWinner(board){
+  const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  for(const[a,b,c]of wins) if(board[a]===board[b]&&board[b]===board[c]&&board[a]!=='-') return board[a];
+  return null;
+}
+
+function neighbourScore(board){
+  let xs=0,os=0;
+  for(let i=0;i<9;i++){
+    if(i===4||board[i]==='-') continue;
+    const row=Math.floor(i/3),col=i%3;
+    for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+      if(!dr&&!dc) continue;
+      const nr=row+dr,nc=col+dc;
+      if(nr>=0&&nr<3&&nc>=0&&nc<3){
+        const ni=nr*3+nc;if(ni===4) continue;
+        if(board[ni]===board[i]){if(board[i]==='x')xs++;else os++;}
+      }
+    }
+  }
+  return{x:xs,o:os};
+}
+
+/* ── Quantum Simulation ── */
+function quantumSimulate(){
+  const board=Array(9).fill('-');
+  const positions=[...takenPositions];
+  positions.sort(()=>Math.random()-0.5);
+  let xc=0,oc=0;
+  for(const p of positions){
+    const player=playerMap[p];
+    const flip=Math.random()<0.15;
+    const eff=flip?(player==='x'?'o':'x'):player;
+    board[p]=eff;
+    if(eff==='x')xc++;else oc++;
+  }
+  for(let i=0;i<9;i++){
+    if(board[i]==='-') continue;
+    if(xc<3&&board[i]==='o'&&Math.random()<0.4){board[i]='x';xc++;oc--;}
+    else if(oc<3&&board[i]==='x'&&Math.random()<0.4){board[i]='o';oc++;xc--;}
+  }
+  return board;
+}
+
+/* ── Results ── */
+function showResults(){
+  gameOver=true;
+  showScreen('screen-results');
+  const container=document.getElementById('sims-container');container.innerHTML='';
+  let xw=0,ow=0,tw=0;
+  const labels=['SIM Ψ·01','SIM Ψ·02','SIM Ψ·03'];
+  for(let s=0;s<3;s++){
+    const fb=quantumSimulate();
+    const winner=checkWinner(fb);
+    const card=document.createElement('div');card.className='sim-card';
+    let html=`<div class="sim-label">${labels[s]}</div><div class="mini-board">`;
+    fb.forEach(v=>{html+=`<div class="mini-cell${v!=='-'?' '+v:''}">${v==='x'?'X':v==='o'?'O':''}</div>`;});
+    html+='</div>';
+    if(winner){
+      html+=`<div class="sim-verdict v${winner}">${winner.toUpperCase()} WINS</div>`;
+      if(winner==='x')xw++;else ow++;
+    } else {
+      const ns=neighbourScore(fb);
+      if(ns.x>ns.o){html+=`<div class="sim-verdict vx">X by neighbour (${ns.x}:${ns.o})</div>`;xw++;}
+      else if(ns.o>ns.x){html+=`<div class="sim-verdict vo">O by neighbour (${ns.x}:${ns.o})</div>`;ow++;}
+      else{html+=`<div class="sim-verdict vt">TIE (${ns.x}:${ns.o})</div>`;tw++;}
+    }
+    card.innerHTML=html;container.appendChild(card);
+  }
+  const vc=document.getElementById('verdict-card');
+  const vi=document.getElementById('verdict-icon');
+  const vt=document.getElementById('verdict-title');
+  const vs=document.getElementById('verdict-sub');
+  if(xw>ow){
+    vc.className='verdict-card vx';vi.textContent='X';
+    vt.textContent='X Wins the Quantum Match';vs.textContent=`${xw} of 3 simulations collapsed in X's favour`;
+  } else if(ow>xw){
+    vc.className='verdict-card vo';vi.textContent='O';
+    vt.textContent='O Wins the Quantum Match';vs.textContent=`${ow} of 3 simulations collapsed in O's favour`;
+  } else {
+    vc.className='verdict-card vt';vi.textContent='⚛';
+    vt.textContent='Quantum Entanglement — Tie';vs.textContent=`The wave function refused to decide a winner`;
+  }
+}
+
+/* ── Minimax AI ── */
+function minimax(board,depth,isMax,alpha,beta,ai,human){
+  const w=checkWinner(board);
+  if(w===ai) return 10-depth;
+  if(w===human) return depth-10;
+  if(!board.includes('-')) return 0;
+  if(isMax){
+    let best=-Infinity;
+    for(let i=0;i<9;i++) if(board[i]==='-'){
+      board[i]=ai;const val=minimax(board,depth+1,false,alpha,beta,ai,human);
+      board[i]='-';best=Math.max(best,val);alpha=Math.max(alpha,best);if(beta<=alpha)break;
+    }
+    return best;
+  } else {
+    let best=Infinity;
+    for(let i=0;i<9;i++) if(board[i]==='-'){
+      board[i]=human;const val=minimax(board,depth+1,true,alpha,beta,ai,human);
+      board[i]='-';best=Math.min(best,val);beta=Math.min(beta,best);if(beta<=alpha)break;
+    }
+    return best;
+  }
+}
+
+function bestMove(){
+  const board=classicalView();
+  const avail=[...Array(9).keys()].filter(i=>!takenPositions.has(i));
+  let bs=-Infinity,move=avail[0];
+  for(const i of avail){
+    board[i]=p2;const score=minimax(board,0,false,-Infinity,Infinity,p2,p1);board[i]='-';
+    if(score>bs){bs=score;move=i;}
+  }
+  return move;
+}
+
+function aiMove(){
+  if(gameOver||turnCount>=9) return;
+  aiThinking=true;
+  const move=bestMove();
+  aiThinking=false;
+  doMove(move);
+}
+
+function resetAll(){
+  document.getElementById('mid-msg').classList.remove('show');
+  showScreen('screen-setup');
+}
+</script>
+</body>
+</html>
